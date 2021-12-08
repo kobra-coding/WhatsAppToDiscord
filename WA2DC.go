@@ -630,7 +630,7 @@ func waSendMessage(jid string, message *dc.MessageCreate) {
 		} else {
 			username = message.Author.Username
 		}
-		message.Content = fmt.Sprintf("[_%v_] %v", username, message.Content)
+		message.Content = fmt.Sprintf("%v: %v", username, message.Content) // So wird die Nachricht auf WhatsApp formatiert
 	}
 	pJid, _ := types.ParseJID(jid)
 	whatsappMessage := &proto.Message{Conversation: &message.Content}
@@ -666,8 +666,10 @@ func jidToName(jid string) string {
 	pJid, _ := types.ParseJID(jid)
 	name := contacts[pJid].FullName
 	if name == "" {
-		if contacts[pJid].PushName != "" {
-			name = "~" + contacts[pJid].PushName
+		if contacts[pJid].PushName != "" { // Name ist entweder Name oder Nummer
+			name = contacts[pJid].PushName
+		} else {
+			name = strings.Split(strings.Split(jid, "@")[0], "-")[0]
 		}
 	}
 	return name
@@ -679,14 +681,19 @@ func messageHandler(evt interface{}) {
 	if m, ok := evt.(*events.Message); ok {
 		if shouldBeSent(m.Info) {
 			var username string
+			//fmt.Println(m)
+			//fmt.Printf("%+v\n", m)
 			username = jidToName(m.Info.MessageSource.Sender.String())
 
 			var messageContent string
+			if settings.WAGroupPrefix && m.Info.IsGroup {
+				//messageContent = "[" + username + "] "
+			}
 
 			if m.Message.GetExtendedTextMessage() != nil {
-				messageContent = fmt.Sprintf("antwortet auf die Nachricht \"%v\" von %v:\n%v", strings.Join(strings.Split(*m.Message.GetExtendedTextMessage().ContextInfo.QuotedMessage.Conversation, "\n"), "\n> "), jidToName(*m.Message.GetExtendedTextMessage().ContextInfo.Participant), *m.Message.GetExtendedTextMessage().Text)
+				messageContent += fmt.Sprintf("> %v: %v\n%v", jidToName(*m.Message.GetExtendedTextMessage().ContextInfo.Participant), strings.Join(strings.Split(*m.Message.GetExtendedTextMessage().ContextInfo.QuotedMessage.Conversation, "\n"), "\n> "), *m.Message.GetExtendedTextMessage().Text)
 			} else {
-				messageContent = m.Message.GetConversation()
+				messageContent += m.Message.GetConversation()
 			}
 			chat := getOrCreateChannel(m.Info.MessageSource.Chat.String())
 			var (
